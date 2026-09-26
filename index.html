@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>NearMe V14</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--sky:#55bdf1;--pale:#e6f7ff;--ink:#172630;--muted:#6c7a83;--border:#566169}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#eef9ff;color:var(--ink)}
+body{overflow:hidden}.app{position:relative;height:100dvh;max-width:600px;margin:auto;overflow:hidden;background:white}
+.bar{position:absolute;z-index:20;top:0;left:0;right:0;height:7px;background:var(--sky)}
+.page{position:absolute;inset:7px 0 0;padding:27px 22px 35px;overflow-y:auto;background:linear-gradient(#eaf8ff 0,#fff 37%);transform:translateX(105%);opacity:.2;transition:transform .42s cubic-bezier(.22,.8,.25,1),opacity .34s ease;visibility:hidden;pointer-events:none}
+.page.active{transform:translateX(0);opacity:1;visibility:visible;pointer-events:auto}
+.page.past{transform:translateX(-105%);opacity:.2;visibility:hidden;pointer-events:none}
+.logo{font-weight:850;color:#158bc7;margin:0 0 39px}.logo i{font-style:normal;display:inline-grid;place-items:center;width:31px;height:31px;border-radius:10px;background:var(--sky);color:white;margin-right:8px}
+h1{font-size:29px;line-height:1.16;margin:0 0 10px}p{color:var(--muted);line-height:1.48}
+.buttons{display:grid;gap:13px;margin-top:28px}
+button{font-family:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.big,.choice,.store{width:100%;border:1.5px solid var(--border);background:white;color:var(--ink);border-radius:17px;padding:17px;font-size:16px;font-weight:750;text-align:left;box-shadow:0 4px 16px #1c6b921e;transition:transform .14s ease,border-color .18s,background .18s,box-shadow .18s}
+.big:active,.choice:active,.store:active{transform:scale(.975)}
+.big.primary{background:var(--sky);border-color:var(--sky);text-align:center;color:#07344c}
+.ico{font-size:21px;margin-right:9px}.back{border:0;background:transparent;font-size:29px;padding:0 16px 12px 0;color:#344851}
+label{display:block;font-size:13px;font-weight:800;color:#52616a}
+input{width:100%;padding:15px;margin:7px 0 16px;border:1.5px solid #a8b3b9;border-radius:14px;background:white;font:inherit;outline:none}
+input:focus{border-color:var(--sky);box-shadow:0 0 0 3px #55bdf126}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:25px}
+.choice{text-align:center;padding:23px 7px;line-height:1.65}.choice.selected{border:2.5px solid var(--sky);background:#e2f6ff;box-shadow:0 0 0 3px #55bdf122}
+.msg{padding:14px;margin-top:17px;border-radius:14px;background:#edf8fd;color:#4c6471;font-size:14px}
+.error{background:#fff0f0;color:#8a4040}.spinner{width:35px;height:35px;border:4px solid #d9edf7;border-top-color:var(--sky);border-radius:50%;animation:spin .75s linear infinite;margin:28px auto}
+@keyframes spin{to{transform:rotate(360deg)}}@keyframes enter{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.store{margin:10px 0;animation:enter .3s both}.store small{display:block;margin-top:5px;color:#71808a;font-weight:500}.pill{display:inline-block;margin-top:7px;padding:5px 9px;border-radius:999px;background:#e0f5ff;color:#137aa9;font-size:12px}
+#pickMap{height:48dvh;border-radius:20px;margin:14px 0;box-shadow:0 5px 20px #173b4e25}#map{height:53dvh;border-radius:20px;margin-top:13px;box-shadow:0 5px 20px #173b4e25}.tiny{font-size:12px;color:#7a8790;margin-top:18px}.empty{text-align:center;padding:35px 8px;color:#71818a}
+.accuracy{font-size:11px;line-height:1.45;color:#89959c;text-align:center;padding:22px 12px 4px}
+</style>
+</head>
+<body>
+<div class="app"><div class="bar"></div>
+<section class="page active" id="home">
+ <div class="logo"><i>⌖</i>NearMe</div>
+ <h1>How would you like to tell your Address?</h1>
+ <p>Choose how we should find the centre point for nearby stores.</p>
+ <div class="buttons">
+  <button type="button" class="big" id="gpsBtn"><span class="ico">📍</span>Location Services</button>
+  <button type="button" class="big" id="manualBtn"><span class="ico">⌨️</span>Manual Typing and Pincode</button>
+ </div>
+ <div id="homeMsg"></div>
+ <p class="tiny">Location Services will ask for browser permission. If GPS is unavailable, you can always return and use Manual Typing and Pincode.</p><div class="accuracy">NearMe may not always be accurate. Some places may have moved or closed, so check important details before visiting.</div>
+</section>
+
+<section class="page" id="gpsError">
+ <button type="button" class="back" data-back="home">‹</button>
+ <div style="height:38px"></div>
+ <div style="font-size:64px;line-height:1;margin-bottom:22px">😵</div>
+ <h1>Oops!</h1>
+ <p style="font-size:17px">Seems like GPS services were blocked! We're working on it! Until then, please use manual typing!</p>
+ <p style="font-weight:800;color:#53636c">Sorry!</p>
+ <div class="buttons">
+  <button type="button" class="big primary" id="errorManualBtn">Use Manual Typing</button>
+ </div>
+</section>
+
+<section class="page" id="manual">
+ <button type="button" class="back" data-back="home">‹</button>
+ <h1>Enter your address</h1><p>Enter your area and location details so we can find a much closer match.</p>
+ <label>State and Country</label><input id="stateInput" placeholder="State, Country">
+ <label>Area</label><input id="addressInput" placeholder="Area / locality">
+ <label>City</label><input id="cityInput" placeholder="City">
+ <label>Pincode</label><input id="pinInput" inputmode="numeric" placeholder="Pincode">
+ <button type="button" class="big primary" id="findBtn">Find my location</button>
+ <div id="manualMsg"></div>
+</section>
+
+<section class="page" id="picker">
+ <button type="button" class="back" data-back="manual">‹</button>
+ <h1>Choose your exact location</h1>
+ <p>We couldn't automatically pinpoint the address. Move the map so the blue target is over your location, then confirm it.</p>
+ <div id="pickMap"></div>
+ <div id="pickMsg"></div>
+ <button type="button" class="big primary" id="confirmPick">Confirm This Location</button>
+ <p class="tiny">This fallback does not use GPS. The map starts near the location we can estimate from the information you entered.</p>
+</section>
+
+<section class="page" id="category">
+ <button type="button" class="back" id="catBack">‹</button>
+ <h1>What are you looking for?</h1><p>Choose one category. Once selected, one option always stays selected—you can switch to another.</p>
+ <div class="grid">
+  <button type="button" class="choice" data-category="stationery">✏️<br>Stationery</button>
+  <button type="button" class="choice" data-category="meat">🥩<br>Meat</button>
+  <button type="button" class="choice" data-category="grocery">🛒<br>Grocery</button>
+  <button type="button" class="choice" data-category="all">🔎<br>All</button>
+ </div>
+ <div style="height:18px"></div><button type="button" class="big primary" id="searchBtn" hidden>Search nearby stores</button>
+</section>
+
+<section class="page" id="results">
+ <button type="button" class="back" data-back="category">‹</button>
+ <h1>Stores nearby</h1><p id="resultInfo">Searching around your location…</p>
+ <div id="loading"><div class="spinner"></div><div class="msg">Searching nearby mapped stores…</div></div>
+ <div id="storeList"></div><button type="button" class="big" id="resultsMapBtn" style="display:none;margin-top:16px;text-align:center">🗺️ Open Map</button><div class="accuracy">NearMe may not always be accurate. Some places may have moved or closed, so check important details before visiting.</div>
+</section>
+
+<section class="page" id="mapPage">
+ <button type="button" class="back" data-back="results">‹</button>
+ <h1 id="storeName">Store</h1><p id="distanceText"></p><div id="map"></div>
+ <p class="tiny">Only your location and the selected store are shown. The displayed distance is straight-line distance.</p><div class="accuracy">NearMe may not always be accurate. Some places may have moved or closed, so check important details before visiting.</div>
+</section>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function(){
+"use strict";
+var current="home", originPage="home", user=null, category=null, map=null, pickMap=null, pickMarker=null, pendingText="";
+function el(id){return document.getElementById(id)}
+function show(id,backwards){
+ var old=el(current), next=el(id); if(!old||!next||id===current)return;
+ old.classList.remove("active");
+ if(backwards){old.classList.remove("past"); next.classList.remove("past");}
+ else{old.classList.add("past"); next.classList.remove("past");}
+ next.style.visibility="visible";
+ requestAnimationFrame(function(){next.classList.add("active")});
+ current=id;
+}
+function message(target,text,bad){target.innerHTML='<div class="msg'+(bad?' error':'')+'">'+text+'</div>'}
+el("manualBtn").addEventListener("click",function(){show("manual",false)});
+el("errorManualBtn").addEventListener("click",function(){show("manual",false)});
+el("gpsBtn").addEventListener("click",function(){
+ var box=el("homeMsg"); box.innerHTML="";
+ if(!navigator.geolocation){show("gpsError",false);return}
+ message(box,"Waiting for location permission…",false);
+ navigator.geolocation.getCurrentPosition(function(pos){
+  user={lat:pos.coords.latitude,lon:pos.coords.longitude}; originPage="home";box.innerHTML="";show("category",false);
+ },function(err){
+  box.innerHTML="";
+  show("gpsError",false);
+ },{enableHighAccuracy:true,timeout:12000,maximumAge:30000});
+});
+document.querySelectorAll("[data-back]").forEach(function(b){b.addEventListener("click",function(){show(b.getAttribute("data-back"),true)})});
+el("catBack").addEventListener("click",function(){show(originPage,true)});
+document.querySelectorAll(".choice").forEach(function(b){b.addEventListener("click",function(){
+ document.querySelectorAll(".choice").forEach(function(x){x.classList.remove("selected")});
+ b.classList.add("selected");category=b.getAttribute("data-category");el("searchBtn").hidden=false;
+})});
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]})}
+el("findBtn").addEventListener("click",async function(){
+ var a=el("addressInput").value.trim(),st=el("stateInput").value.trim(),c=el("cityInput").value.trim(),p=el("pinInput").value.trim(),box=el("manualMsg");
+ if(!st&&!a&&!c&&!p){message(box,"Please enter your State and Country, Area, City and Pincode.",true);return}
+ box.innerHTML='<div class="spinner"></div>';
+ try{
+  var queries=[
+   [a,c,st,p].filter(Boolean).join(", "),
+   [a,c,st].filter(Boolean).join(", "),
+   [c,st,p].filter(Boolean).join(", "),
+   [c,st].filter(Boolean).join(", "),
+   [p,st].filter(Boolean).join(", ")
+  ].filter(function(q,i,arr){return q&&arr.indexOf(q)===i});
+  var best=null,bestScore=-1;
+  for(var qi=0;qi<queries.length;qi++){
+   var url="https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=10&q="+encodeURIComponent(queries[qi]);
+   var res=await fetch(url,{headers:{"Accept":"application/json"}});
+   if(!res.ok)continue;
+   var data=await res.json();
+   for(var i=0;i<data.length;i++){
+    var d=data[i], name=(d.display_name||"").toLowerCase(), ad=d.address||{}, score=0;
+    var area=a.toLowerCase(), city=c.toLowerCase(), region=st.toLowerCase(), pin=p.toLowerCase();
+    if(area&&name.indexOf(area)>=0)score+=120;
+    if(city&&name.indexOf(city)>=0)score+=70;
+    if(region){
+     var words=region.split(",").map(function(x){return x.trim()}).filter(Boolean);
+     words.forEach(function(w){if(name.indexOf(w)>=0)score+=45});
+    }
+    if(pin&&name.indexOf(pin)>=0)score+=60;
+    if(area&&["neighbourhood","suburb","quarter","hamlet","village","residential","road"].indexOf(d.type)>=0)score+=35;
+    if(score>bestScore){bestScore=score;best=d}
+   }
+   if(best && bestScore>=120)break;
+  }
+  if(!best)throw new Error("notfound");
+  user={lat:Number(best.lat),lon:Number(best.lon)};originPage="manual";
+  message(box,"✓ Location found: "+esc(best.display_name),false);
+  setTimeout(function(){show("category",false)},350);
+ }catch(e){
+  box.innerHTML="";
+  openPicker(c,p,a,st);
+ }
+});
+async function openPicker(city,pin,address,state){
+ var candidates=[
+  [address,city,state].filter(Boolean).join(", "),
+  [city,state,pin].filter(Boolean).join(", "),
+  [city,state].filter(Boolean).join(", "),
+  [pin,state].filter(Boolean).join(", "),
+  state
+ ].filter(Boolean);
+ var hit=null;
+ for(var i=0;i<candidates.length&&!hit;i++){
+  try{
+   var r=await fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&q="+encodeURIComponent(candidates[i]),{headers:{"Accept":"application/json"}});
+   if(r.ok){var d=await r.json();if(d.length)hit=d[0]}
+  }catch(e){}
+ }
+ if(!hit){
+  show("manual",true);
+  message(el("manualMsg"),"We couldn't locate that address. Check the spelling and include both the state and country, then try again.",true);
+  return;
+ }
+ show("picker",false);
+ var startLat=Number(hit.lat),startLon=Number(hit.lon),zoom=15;
+ setTimeout(function(){
+  if(typeof L==="undefined"){message(el("pickMsg"),"The online map could not load. Check your internet connection and reload NearMe.",true);el("confirmPick").disabled=true;return}
+  el("confirmPick").disabled=false;
+  if(pickMap){pickMap.remove();pickMap=null}
+  pickMap=L.map("pickMap",{center:[startLat,startLon],zoom:zoom});
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:20,attribution:"© OpenStreetMap contributors"}).addTo(pickMap);
+  pickMarker=L.marker([startLat,startLon]).addTo(pickMap);
+  function centerMarker(){pickMarker.setLatLng(pickMap.getCenter())}
+  pickMap.on("move",centerMarker);
+  message(el("pickMsg"),"We found the general area. Move the map until the pin is exactly where you want it, then confirm.",false);
+  pickMap.invalidateSize();
+ },420);
+}
+el("confirmPick").addEventListener("click",function(){
+ if(!pickMap)return;
+ var c=pickMap.getCenter();user={lat:c.lat,lon:c.lng};originPage="manual";show("category",false);
+});
+function overpass(cat,r){
+ var ar="(around:"+r+","+user.lat+","+user.lon+")",f="";
+ if(cat==="stationery")f='nwr["shop"="stationery"]'+ar+';nwr["shop"="books"]'+ar+";";
+ else if(cat==="meat")f='nwr["shop"="butcher"]'+ar+';nwr["shop"="seafood"]'+ar+";";
+ else if(cat==="grocery")f='nwr["shop"="supermarket"]'+ar+';nwr["shop"="convenience"]'+ar+';nwr["shop"="general"]'+ar+';nwr["shop"="greengrocer"]'+ar+";";
+ else f='nwr["shop"~"^(supermarket|convenience|general|stationery|books|butcher|seafood|greengrocer|bakery|deli|department_store|variety_store|mall|clothes|shoes|chemist|hardware|mobile_phone|electronics|gift|beauty|florist)$"]'+ar+";";
+ return "[out:json][timeout:20];("+f+");out center tags;";
+}
+function km(a,b,c,d){var R=6371,x=(c-a)*Math.PI/180,y=(d-b)*Math.PI/180,z=Math.sin(x/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(y/2)**2;return 2*R*Math.asin(Math.sqrt(z))}
+function fetchWithTimeout(url,options,ms){
+ var controller=new AbortController(),timer=setTimeout(function(){controller.abort()},ms);
+ options=options||{};options.signal=controller.signal;
+ return fetch(url,options).finally(function(){clearTimeout(timer)});
+}
+async function queryOverpass(q){
+ var servers=[
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter"
+ ];
+ var jobs=servers.map(function(server){
+  return fetchWithTimeout(server+"?data="+encodeURIComponent(q),{headers:{"Accept":"application/json"}},9000)
+   .then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json()});
+ });
+ return Promise.any(jobs);
+}
+el("searchBtn").addEventListener("click",async function(){
+ if(!user||!category)return;
+ show("results",false);
+ el("loading").style.display="block";
+ el("storeList").innerHTML="";
+ el("resultsMapBtn").style.display="none";
+ el("resultInfo").textContent="Searching around your location…";
+ try{
+  // One 5 km query is faster and avoids waiting through 3 radii × several servers.
+  var data=await queryOverpass(overpass(category,5000));
+  var found=(data.elements||[]).map(function(x){
+   return {id:x.type+x.id,name:(x.tags&&x.tags.name)||(x.tags&&x.tags.brand)||"Unnamed store",
+    lat:x.lat||(x.center&&x.center.lat),lon:x.lon||(x.center&&x.center.lon)};
+  }).filter(function(x){return Number.isFinite(x.lat)&&Number.isFinite(x.lon)});
+  var seen={},list=[];
+  found.forEach(function(store){
+   if(!seen[store.id]){seen[store.id]=1;store.km=km(user.lat,user.lon,store.lat,store.lon);list.push(store)}
+  });
+  list.sort(function(a,b){return a.km-b.km});
+  render(list.slice(0,30));
+ }catch(e){
+  el("loading").style.display="none";
+  el("resultInfo").textContent="Store search could not finish.";
+  el("storeList").innerHTML='<div class="empty">The public store database did not respond in time. Try again, or test the live GitHub Pages version because downloaded file pages can have stricter network rules.</div>';
+ }
+});
+var lastStores=[];
+function render(list){
+ lastStores=list;
+ el("loading").style.display="none";
+ el("resultsMapBtn").style.display=list.length?"block":"none";el("resultInfo").textContent=list.length?list.length+" mapped place"+(list.length===1?"":"s")+" found within up to 5 km.":"No matching mapped stores were found within 5 km.";
+ el("storeList").innerHTML=list.length?"":'<div class="empty">Try another category or “All”.</div>';
+ list.forEach(function(s,i){var b=document.createElement("button");b.type="button";b.className="store";b.style.animationDelay=(i*.025)+"s";b.innerHTML=esc(s.name)+'<small>Tap to see location</small><span class="pill">'+s.km.toFixed(2)+" km away</span>";b.addEventListener("click",function(){openMap(s)});el("storeList").appendChild(b)});
+}
+el("resultsMapBtn").addEventListener("click",function(){
+ if(!lastStores.length)return;
+ show("mapPage",false);
+ el("storeName").textContent="Nearby stores";
+ el("distanceText").textContent=lastStores.length+" mapped places within 5 km";
+ setTimeout(function(){
+  if(typeof L==="undefined"){el("map").innerHTML='<div class="msg error">The online map library could not load.</div>';return}
+  if(map){map.remove();map=null}
+  map=L.map("map");
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:20,attribution:"© OpenStreetMap contributors"}).addTo(map);
+  var pts=[[user.lat,user.lon]];
+  L.marker([user.lat,user.lon]).addTo(map).bindPopup("You");
+  lastStores.forEach(function(store){
+   L.marker([store.lat,store.lon]).addTo(map).bindPopup(store.name+" · "+store.km.toFixed(2)+" km");
+   pts.push([store.lat,store.lon]);
+  });
+  map.fitBounds(L.latLngBounds(pts).pad(.2),{maxZoom:15});
+  map.invalidateSize();
+ },470);
+});
+function openMap(s){
+ show("mapPage",false);el("storeName").textContent=s.name;el("distanceText").textContent="About "+s.km.toFixed(2)+" km away (straight line)";
+ setTimeout(function(){
+  if(typeof L==="undefined"){el("map").innerHTML='<div class="msg error">The online map library could not load.</div>';return}
+  if(map){map.remove();map=null}map=L.map("map");
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:20,attribution:"© OpenStreetMap contributors"}).addTo(map);
+  L.marker([user.lat,user.lon]).addTo(map).bindPopup("You");
+  L.marker([s.lat,s.lon]).addTo(map).bindPopup(s.name).openPopup();
+  map.fitBounds(L.latLngBounds([[user.lat,user.lon],[s.lat,s.lon]]).pad(.3),{maxZoom:16});
+ },470);
+}
+})();
+</script></body></html>
